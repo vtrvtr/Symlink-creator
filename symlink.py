@@ -69,7 +69,7 @@ if __name__ == '__main__':
     confirmation = input("Is this information correct? ")
 
     if confirmation.lower() == 'y':
-        create_symlinks(args.origin, args.destination)
+        create_symlinks(args.origin, args.destination, file_list)
     else:
         print("Exiting...")
         sys.exit()
