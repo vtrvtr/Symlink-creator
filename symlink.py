@@ -1,60 +1,70 @@
 #!python3
+# -*- coding: utf-8 -*-
 
 import os
-import argparse
 import sys
+import argparse
+import configparser
 from ntfsutils import hardlink
+from pathlib import PureWindowsPath
 
-VIDEO_EXT = ['.mkv', '.mp4']
+config = configparser.ConfigParser()
+config.read('E:\Code\Symlink creator\symlink_config.ini')
+default_config = config['default']
+EXTENSIONS = default_config.get('ext')
 
 
 def list_files(path):
-    return [file for path, directories, files in os.walk(path) for file in files]
+    return [os.path.join(path, file) for path, directories, files in os.walk(path) for file in files]
 
-
-def create_link(origin, dest, files, mode='symlink'):
-    folder_name = os.path.split(origin)[1]
-    folder_destination = os.path.join(dest, folder_name)
-    for path, directories, files in os.walk(origin):
-        for file in files:
-            file_destination = os.path.join(dest, folder_name, file)
-            file_origin = os.path.join(origin, file)
-            if os.path.exists(folder_destination):
-                if not os.path.exists(file_destination):
-                    try:
-                        print('Folder already exists, just creating {}\n'.format(mode))
-                        if mode == 'symlink':
-                            os.symlink(file_origin, file_destination)
-                        else:
-                            hardlink.create(file_origin, file_destination)
-                        print("File: {} linked to {}\n ({})\n".format(
-                            file_origin, file_destination, mode))
-                    except FileExistsError:
-                        print(
-                            "File {} already exists. Skipping it\n".format(file_destination))
-                        pass
-            else:
-                os.makedirs(folder_destination)
-                print("Creating folder {}".format(folder_destination))
-                if mode == 'symlink':
-                    os.symlink(file_origin, file_destination)
-                else:
-                    hardlink.create(file_origin, file_destination)
-                print("File: {} symlinked to {}({})\n".format(
-                    file_origin, file_destination, mode))
 
 def print_header(file_list, origin, destination):
     print('There are {} files. These are the paths:'.format(len(file_list)))
     no_video_files = []
+    destination_path = PureWindowsPath(destination)
+    origin_path = PureWindowsPath(origin)
     for file in file_list:
-        if os.path.splitext(file)[1] in VIDEO_EXT:
-            print('{} -> {}'.format('{}\{}'.format(origin, file),
-                                    '{}\{}\n'.format(destination, file)))
+        file = file.encode('utf8').decode('cp850')
+        file_path = PureWindowsPath(file)
+        if origin_path.suffix in EXTENSIONS:
+            print('{} -> {}'.format(file_path, destination_path / file_path.parents[0] / file_path.name ))
         else:
             no_video_files.append(file)
     if no_video_files:
+        print('FILES THAT WILL BE IGNORED:\n')
         for file in no_video_files:
             print(file)
+
+
+def create_link(file_origin, file_destination, mode='symlink'):
+    try:
+        if not os.path.exists(os.path.dirname(file_destination)):
+            os.makedirs(os.path.dirname(file_destination))
+        print('Folder already exists, just creating {}\n'.format(mode))
+        if mode == 'symlink':
+            os.symlink(file_origin, file_destination)
+        else:
+            hardlink.create(file_origin, file_destination)
+        print("File: {} linked to {}\n ({})\n".format(
+            file_origin, file_destination, mode))
+    except FileExistsError:
+        print(
+            "File {} already exists. Skipping it\n".format(file_destination))
+        pass
+
+
+def main(origin, dest, files, mode='symlink'):
+    folder_name = os.path.split(origin)[1]
+    for directory, subdirectories, files in os.walk(origin):
+        folder_destination = os.path.join(dest, folder_name)
+        subfolder = os.path.split(directory)[1]
+        for file in files:
+            file = file.encode('utf8').decode('cp850')
+            file_destination = os.path.join(
+                folder_destination, subfolder, file)
+            file_origin = os.path.join(directory, file)
+            if not os.path.exists(file_destination):
+                create_link(file_origin, file_destination, mode)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -76,10 +86,12 @@ if __name__ == '__main__':
     confirmation = input("Is this information correct? ")
 
     if confirmation.lower() == 'y':
-        if args.mode[0].lower() == 's': 
-            create_link(args.origin, args.destination, file_list, mode='symlink')
+        if args.mode[0].lower() == 's':
+            main(args.origin, args.destination,
+                 file_list, mode='symlink')
         elif args.mode[0].lower() == 'h':
-            create_link(args.origin, args.destination, file_list, mode='hardlink')
+            main(args.origin, args.destination,
+                 file_list, mode='hardlink')
     else:
         print("Exiting...")
         sys.exit()
