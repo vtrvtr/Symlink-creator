@@ -6,7 +6,7 @@ import sys
 import argparse
 import configparser
 from ntfsutils import hardlink
-from pathlib import PureWindowsPath
+from pathlib import Path
 
 config = configparser.ConfigParser()
 config.read('E:\Code\Symlink creator\symlink_config.ini')
@@ -21,13 +21,14 @@ def list_files(path):
 def print_header(file_list, origin, destination):
     print('There are {} files. These are the paths:'.format(len(file_list)))
     no_video_files = []
-    destination_path = PureWindowsPath(destination)
-    origin_path = PureWindowsPath(origin)
+    destination_path = Path(destination)
+    origin_path = Path(origin)
     for file in file_list:
         file = file.encode('utf8').decode('cp850')
-        file_path = PureWindowsPath(file)
+        file_path = Path(file)
         if origin_path.suffix in EXTENSIONS:
-            print('{} -> {}'.format(file_path, destination_path / file_path.parents[0] / file_path.name ))
+            print('{} -> {}'.format(file_path, destination_path /
+                                    file_path.parents[0] / file_path.name))
         else:
             no_video_files.append(file)
     if no_video_files:
@@ -38,11 +39,13 @@ def print_header(file_list, origin, destination):
 
 def create_link(file_origin, file_destination, mode='symlink'):
     try:
-        if not os.path.exists(os.path.dirname(file_destination)):
-            os.makedirs(os.path.dirname(file_destination))
+        if not file_destination.parent.exists():
+            os.makedirs(os.path.dirname(str(file_destination)))
+            # file_destination.mkdir(parents=True)
         print('Folder already exists, just creating {}\n'.format(mode))
         if mode == 'symlink':
-            os.symlink(file_origin, file_destination)
+            os.symlink(str(file_origin), str(file_destination))
+            # file_origin.symlink_to(file_destination, target_is_directory=True)
         else:
             hardlink.create(file_origin, file_destination)
         print("File: {} linked to {}\n ({})\n".format(
@@ -54,16 +57,17 @@ def create_link(file_origin, file_destination, mode='symlink'):
 
 
 def main(origin, dest, files, mode='symlink'):
-    folder_name = os.path.split(origin)[1]
+    origin_path = Path(origin)
+    destination_path = Path(dest)
+    folder_name = origin_path.parts[-1]
     for directory, subdirectories, files in os.walk(origin):
-        folder_destination = os.path.join(dest, folder_name)
-        subfolder = os.path.split(directory)[1]
+        folder_destination = destination_path / folder_name
+        subfolder = Path(directory).parts[-1]
         for file in files:
             file = file.encode('utf8').decode('cp850')
-            file_destination = os.path.join(
-                folder_destination, subfolder, file)
-            file_origin = os.path.join(directory, file)
-            if not os.path.exists(file_destination):
+            file_destination = folder_destination / subfolder / file
+            file_origin = Path(directory, file)
+            if not file_destination.exists():
                 create_link(file_origin, file_destination, mode)
 
 if __name__ == '__main__':
